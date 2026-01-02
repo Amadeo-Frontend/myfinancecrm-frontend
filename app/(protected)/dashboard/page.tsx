@@ -8,9 +8,12 @@ import {
   CalendarDays,
   CirclePlus,
   CreditCard,
+  Loader2,
+  LogOut,
   Receipt,
   Trash2,
 } from "lucide-react";
+import { signOut } from "next-auth/react";
 
 import { DashboardCards } from "@/components/dashboard-cards";
 import { DashboardSkeleton } from "@/components/loading-skeleton";
@@ -73,6 +76,7 @@ export default function DashboardPage() {
   const [despesas, setDespesas] = useState<Movimento[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [form, setForm] = useState<MovimentoForm>({
     descricao: "",
     valor: 0,
@@ -204,6 +208,18 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleLogout() {
+    try {
+      setLoggingOut(true);
+      await signOut({ callbackUrl: "/login" });
+    } catch (err) {
+      console.error(err);
+      toast.error("Nao foi possivel sair. Tente de novo.");
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
   const ultimosMovimentos = useMemo(() => {
     const merged = [...receitas, ...despesas];
     return merged
@@ -215,18 +231,36 @@ export default function DashboardPage() {
   }, [receitas, despesas]);
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="space-y-8 bg-gradient-to-br from-background via-background to-primary/5 p-4 sm:p-6 md:p-8 rounded-xl border border-border/60 shadow-sm">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1.5">
           <p className="text-sm uppercase tracking-wide text-muted-foreground">
             Visao geral
           </p>
           <h1 className="text-3xl font-semibold">Dashboard financeiro</h1>
+          <p className="text-sm text-muted-foreground">
+            Acompanhe receitas, despesas e saldo em tempo real.
+          </p>
         </div>
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <CalendarDays className="h-4 w-4" />
-          {new Date().toLocaleDateString("pt-BR")}
-        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border/70 px-3 py-1 text-sm text-muted-foreground">
+            <CalendarDays className="h-4 w-4" />
+            {new Date().toLocaleDateString("pt-BR")}
+          </div>
+          <Button
+            variant="outline"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="gap-2"
+          >
+            {loggingOut ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <LogOut className="h-4 w-4" />
+            )}
+            Sair
+          </Button>
+      </div>
       </div>
 
       {loading && <DashboardSkeleton />}
@@ -239,7 +273,7 @@ export default function DashboardPage() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
-        <Card className="border-border/80 shadow-sm">
+        <Card className="border-border/80 shadow-lg backdrop-blur bg-card/80">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
             <CardTitle className="text-lg">Movimentacoes recentes</CardTitle>
             <Receipt className="h-5 w-5 text-primary" />
@@ -303,9 +337,12 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/80 shadow-sm">
-          <CardHeader>
+        <Card className="border-border/80 shadow-lg backdrop-blur bg-card/80">
+          <CardHeader className="space-y-1">
             <CardTitle className="text-lg">Adicionar movimento</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Cadastre receitas ou despesas para atualizar o saldo.
+            </p>
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={handleSubmit} noValidate>
@@ -433,8 +470,15 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full" disabled={saving}>
-                {saving ? "Salvando..." : "Cadastrar movimento"}
+              <Button type="submit" className="w-full gap-2" disabled={saving}>
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  "Cadastrar movimento"
+                )}
               </Button>
             </form>
           </CardContent>
