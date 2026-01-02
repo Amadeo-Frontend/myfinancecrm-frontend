@@ -7,7 +7,7 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
     ...options,
     headers: {
       ...(options.headers || {}),
-      Authorization: `Bearer ${session?.apiToken}`,
+      Authorization: `Bearer ${session?.apiToken?.sub}`,
       "Content-Type": "application/json",
     },
   });

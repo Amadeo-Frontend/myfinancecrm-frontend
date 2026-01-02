@@ -1,10 +1,15 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import type { NextAuthOptions } from "next-auth";
 
-const handler = NextAuth({
+export const authOptions: NextAuthOptions = {
+  session: {
+    strategy: "jwt",
+  },
+
   providers: [
     CredentialsProvider({
-      name: "Admin",
+      name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
@@ -19,7 +24,7 @@ const handler = NextAuth({
         ) {
           return {
             id: "admin",
-            name: "Administrador",
+            name: "Admin",
             email: credentials.email,
           };
         }
@@ -29,15 +34,11 @@ const handler = NextAuth({
     }),
   ],
 
-  session: {
-    strategy: "jwt",
-  },
-
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
         token.email = user.email;
-        token.name = user.name;
+        token.apiToken = signJwt(user.email!);
       }
       return token;
     },
@@ -45,17 +46,23 @@ const handler = NextAuth({
     async session({ session, token }) {
       if (session.user) {
         session.user.email = token.email as string;
-        session.user.name = token.name as string;
+        session.apiToken = token.apiToken as string;
       }
       return session;
     },
   },
 
-  pages: {
-    signIn: "/login",
-  },
-
   secret: process.env.NEXTAUTH_SECRET,
-});
+};
 
+function signJwt(email: string) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const jwt = require("jsonwebtoken");
+
+  return jwt.sign({ sub: email, email }, process.env.JWT_SECRET!, {
+    expiresIn: "8h",
+  });
+}
+
+const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };
