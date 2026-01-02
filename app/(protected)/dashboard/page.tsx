@@ -15,6 +15,7 @@ import {
   PlusCircle,
   RefreshCcw,
   Receipt,
+  PiggyBank,
   Trash2,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
@@ -268,16 +269,20 @@ export default function DashboardPage() {
         ref={topRef}
         className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
       >
-        <div className="space-y-1.5">
-          <p className="text-sm uppercase tracking-wide text-muted-foreground">
+        <div className="space-y-2">
+          <p className="text-sm uppercase tracking-wide text-muted-foreground flex items-center gap-2">
+            <LayoutDashboard className="h-4 w-4" />
             Visao geral
           </p>
-          <h1 className="text-3xl font-semibold leading-tight">Dashboard financeiro</h1>
+          <h1 className="text-3xl font-semibold leading-tight flex items-center gap-2">
+            <PiggyBank className="h-7 w-7 text-primary" />
+            Dashboard financeiro
+          </h1>
           <p className="text-sm text-muted-foreground">
             Acompanhe receitas, despesas e saldo em tempo real.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-sm sm:text-base">
           <div className="inline-flex items-center gap-2 rounded-full border border-border/70 px-3 py-1 text-sm text-muted-foreground">
             <CalendarDays className="h-4 w-4" />
             {new Date().toLocaleDateString("pt-BR")}
@@ -288,7 +293,6 @@ export default function DashboardPage() {
               onClick={() => loadAll()}
               disabled={loading}
               className="gap-2"
-              size="sm"
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -302,7 +306,6 @@ export default function DashboardPage() {
               onClick={handleLogout}
               disabled={loggingOut}
               className="gap-2"
-              size="sm"
             >
               {loggingOut ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -327,8 +330,10 @@ export default function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
         <Card ref={listRef} className="border-border/80 shadow-lg backdrop-blur bg-card/80">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-lg">Movimentacoes recentes</CardTitle>
-            <Receipt className="h-5 w-5 text-primary" />
+            <div className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">Movimentacoes recentes</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -498,7 +503,10 @@ export default function DashboardPage() {
 
         <Card ref={formRef} className="border-border/80 shadow-lg backdrop-blur bg-card/80">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-lg">Adicionar movimento</CardTitle>
+            <div className="flex items-center gap-2">
+              <PlusCircle className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">Adicionar movimento</CardTitle>
+            </div>
             <p className="text-sm text-muted-foreground">
               Cadastre receitas ou despesas para atualizar o saldo.
             </p>

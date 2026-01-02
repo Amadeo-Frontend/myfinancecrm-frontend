@@ -187,7 +187,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                className="w-full"
+                className="w-full gap-2"
                 size="lg"
                 disabled={loading}
               >
