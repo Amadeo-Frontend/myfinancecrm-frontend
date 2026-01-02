@@ -1,10 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { useEffect, useMemo, useState } from "react";
+import { z } from "zod";
+import { toast } from "sonner";
+import {
+  Banknote,
+  CalendarDays,
+  CirclePlus,
+  CreditCard,
+  Receipt,
+  Trash2,
+} from "lucide-react";
+
 import { DashboardCards } from "@/components/dashboard-cards";
 import { DashboardSkeleton } from "@/components/loading-skeleton";
-import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { apiFetch } from "@/lib/api";
 
 type DashboardData = {
   total_receitas: number;
@@ -12,38 +34,412 @@ type DashboardData = {
   saldo: number;
 };
 
+type MovimentoBase = {
+  id: string;
+  descricao: string;
+  valor: number;
+  categoria: string;
+  data: string;
+};
+
+type Movimento = MovimentoBase & {
+  tipo: "receita" | "despesa";
+};
+
+const movimentoSchema = z.object({
+  descricao: z.string().min(3, "Descreva com pelo menos 3 caracteres."),
+  valor: z.coerce.number().positive("Valor deve ser maior que zero."),
+  categoria: z.string().min(2, "Informe uma categoria."),
+  data: z.string().min(1, "Data obrigatoria."),
+  tipo: z.enum(["receita", "despesa"]),
+});
+
+type MovimentoForm = z.infer<typeof movimentoSchema>;
+type MovimentoErrors = Partial<Record<keyof MovimentoForm, string>>;
+
+const currency = (value: number) =>
+  new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+  }).format(value);
+
+const formatDate = (value: string) =>
+  new Date(value).toLocaleDateString("pt-BR");
+
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
+  const [summary, setSummary] = useState<DashboardData | null>(null);
+  const [receitas, setReceitas] = useState<Movimento[]>([]);
+  const [despesas, setDespesas] = useState<Movimento[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<MovimentoForm>({
+    descricao: "",
+    valor: 0,
+    categoria: "",
+    data: "",
+    tipo: "receita",
+  });
+  const [errors, setErrors] = useState<MovimentoErrors>({});
 
   useEffect(() => {
-    async function loadDashboard() {
-      try {
-        const res = await api.get<DashboardData>("/dashboard");
-        setData(res.data);
-      } catch (error) {
-        toast.error("Erro ao carregar dashboard");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadDashboard();
+    void loadAll();
   }, []);
 
+  async function loadAll() {
+    setLoading(true);
+    try {
+      const [dashRes, recRes, desRes] = await Promise.all([
+        apiFetch("/dashboard"),
+        apiFetch("/receitas"),
+        apiFetch("/despesas"),
+      ]);
+
+      if (!dashRes.ok) throw new Error("Falha ao carregar resumo");
+      if (!recRes.ok) throw new Error("Falha ao carregar receitas");
+      if (!desRes.ok) throw new Error("Falha ao carregar despesas");
+
+      const dashBody = (await dashRes.json()) as DashboardData;
+      const recBody = (await recRes.json()) as MovimentoBase[];
+      const desBody = (await desRes.json()) as MovimentoBase[];
+
+      setSummary(dashBody);
+      setReceitas(
+        recBody.map((item) => ({
+          ...item,
+          valor: Number(item.valor),
+          tipo: "receita",
+        }))
+      );
+      setDespesas(
+        desBody.map((item) => ({
+          ...item,
+          valor: Number(item.valor),
+          tipo: "despesa",
+        }))
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error("Nao foi possivel carregar os dados do dashboard.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const parsed = movimentoSchema.safeParse(form);
+
+    if (!parsed.success) {
+      const fieldErrors = parsed.error.flatten().fieldErrors;
+      setErrors({
+        descricao: fieldErrors.descricao?.[0],
+        valor: fieldErrors.valor?.[0],
+        categoria: fieldErrors.categoria?.[0],
+        data: fieldErrors.data?.[0],
+        tipo: fieldErrors.tipo?.[0],
+      });
+      toast.error("Revise os campos destacados.");
+      return;
+    }
+
+    setErrors({});
+    setSaving(true);
+
+    const endpoint =
+      form.tipo === "receita" ? "/receitas" : "/despesas";
+
+    try {
+      const response = await apiFetch(endpoint, {
+        method: "POST",
+        body: JSON.stringify({
+          descricao: parsed.data.descricao,
+          valor: parsed.data.valor,
+          categoria: parsed.data.categoria,
+          data: parsed.data.data,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Erro ao salvar movimento");
+      }
+
+      toast.success(
+        form.tipo === "receita"
+          ? "Receita adicionada!"
+          : "Despesa adicionada!"
+      );
+
+      setForm({
+        descricao: "",
+        valor: 0,
+        categoria: "",
+        data: "",
+        tipo: form.tipo,
+      });
+
+      await loadAll();
+    } catch (err) {
+      console.error(err);
+      toast.error("Nao foi possivel salvar. Tente novamente.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string, tipo: Movimento["tipo"]) {
+    const endpoint = tipo === "receita" ? "/receitas" : "/despesas";
+    try {
+      const res = await apiFetch(`${endpoint}/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Falha ao remover");
+      toast.success(
+        tipo === "receita" ? "Receita removida." : "Despesa removida."
+      );
+      await loadAll();
+    } catch (err) {
+      console.error(err);
+      toast.error("Nao foi possivel remover o registro.");
+    }
+  }
+
+  const ultimosMovimentos = useMemo(() => {
+    const merged = [...receitas, ...despesas];
+    return merged
+      .sort(
+        (a, b) =>
+          new Date(b.data).getTime() - new Date(a.data).getTime()
+      )
+      .slice(0, 6);
+  }, [receitas, despesas]);
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm uppercase tracking-wide text-muted-foreground">
+            Visao geral
+          </p>
+          <h1 className="text-3xl font-semibold">Dashboard financeiro</h1>
+        </div>
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <CalendarDays className="h-4 w-4" />
+          {new Date().toLocaleDateString("pt-BR")}
+        </div>
+      </div>
 
       {loading && <DashboardSkeleton />}
-
-      {data && (
+      {!loading && summary && (
         <DashboardCards
-          total_receitas={data.total_receitas}
-          total_despesas={data.total_despesas}
-          saldo={data.saldo}
+          total_receitas={summary.total_receitas}
+          total_despesas={summary.total_despesas}
+          saldo={summary.saldo}
         />
       )}
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+        <Card className="border-border/80 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-lg">Movimentacoes recentes</CardTitle>
+            <Receipt className="h-5 w-5 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Descricao</TableHead>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead className="text-right">Acoes</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ultimosMovimentos.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center">
+                      Nenhum movimento cadastrado ainda.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {ultimosMovimentos.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell>
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs font-medium ${
+                          item.tipo === "receita"
+                            ? "bg-emerald-50 text-emerald-600"
+                            : "bg-red-50 text-red-600"
+                        }`}
+                      >
+                        {item.tipo === "receita" ? "Receita" : "Despesa"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate">
+                      {item.descricao}
+                    </TableCell>
+                    <TableCell>{item.categoria}</TableCell>
+                    <TableCell>{formatDate(item.data)}</TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {item.tipo === "receita" ? "+" : "-"}
+                      {currency(item.valor)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleDelete(item.id, item.tipo)}
+                        aria-label="Excluir"
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/80 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">Adicionar movimento</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="descricao">Descricao</Label>
+                  <Input
+                    id="descricao"
+                    value={form.descricao}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        descricao: e.target.value,
+                      }))
+                    }
+                    aria-invalid={Boolean(errors.descricao)}
+                    placeholder="Ex.: Fatura cartao, salario"
+                  />
+                  {errors.descricao && (
+                    <p className="text-sm text-destructive">
+                      {errors.descricao}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="valor">Valor</Label>
+                  <div className="relative">
+                    <Banknote className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="valor"
+                      type="number"
+                      step="0.01"
+                      value={form.valor}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          valor: e.target.valueAsNumber,
+                        }))
+                      }
+                      aria-invalid={Boolean(errors.valor)}
+                      className="pl-10"
+                    />
+                  </div>
+                  {errors.valor && (
+                    <p className="text-sm text-destructive">
+                      {errors.valor}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="categoria">Categoria</Label>
+                  <Input
+                    id="categoria"
+                    value={form.categoria}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        categoria: e.target.value,
+                      }))
+                    }
+                    aria-invalid={Boolean(errors.categoria)}
+                    placeholder="Ex.: Alimentacao, Salario"
+                  />
+                  {errors.categoria && (
+                    <p className="text-sm text-destructive">
+                      {errors.categoria}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="data">Data</Label>
+                  <div className="relative">
+                    <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="data"
+                      type="date"
+                      value={form.data}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          data: e.target.value,
+                        }))
+                      }
+                      aria-invalid={Boolean(errors.data)}
+                      className="pl-10"
+                    />
+                  </div>
+                  {errors.data && (
+                    <p className="text-sm text-destructive">
+                      {errors.data}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tipo</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={form.tipo === "receita" ? "default" : "outline"}
+                      className="w-full"
+                      onClick={() => setForm((prev) => ({ ...prev, tipo: "receita" }))}
+                    >
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      Receita
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={form.tipo === "despesa" ? "default" : "outline"}
+                      className="w-full"
+                      onClick={() => setForm((prev) => ({ ...prev, tipo: "despesa" }))}
+                    >
+                      <CirclePlus className="mr-2 h-4 w-4" />
+                      Despesa
+                    </Button>
+                  </div>
+                  {errors.tipo && (
+                    <p className="text-sm text-destructive">
+                      {errors.tipo}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={saving}>
+                {saving ? "Salvando..." : "Cadastrar movimento"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
