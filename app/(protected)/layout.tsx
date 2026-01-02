@@ -1,27 +1,16 @@
-"use client";
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
 
-import { Sidebar } from "@/components/sidebar";
-import { Toaster } from "sonner";
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-
-export default function ProtectedLayout({
+export default async function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const router = useRouter();
+  const session = await getServerSession();
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) router.push("/login");
-  }, [router]);
+  if (!session) {
+    redirect("/login");
+  }
 
-  return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto p-6">{children}</main>
-      <Toaster richColors />
-    </div>
-  );
+  return <>{children}</>;
 }

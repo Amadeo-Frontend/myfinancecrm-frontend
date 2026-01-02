@@ -9,6 +9,7 @@ const handler = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
+
       async authorize(credentials) {
         if (!credentials) return null;
 
@@ -17,8 +18,8 @@ const handler = NextAuth({
           credentials.password === process.env.ADMIN_PASSWORD
         ) {
           return {
-            id: "1",
-            name: "Admin",
+            id: "admin",
+            name: "Administrador",
             email: credentials.email,
           };
         }
@@ -31,8 +32,6 @@ const handler = NextAuth({
   session: {
     strategy: "jwt",
   },
-
-  secret: process.env.NEXTAUTH_SECRET,
 
   callbacks: {
     async jwt({ token, user }) {
@@ -51,6 +50,12 @@ const handler = NextAuth({
       return session;
     },
   },
+
+  pages: {
+    signIn: "/login",
+  },
+
+  secret: process.env.NEXTAUTH_SECRET,
 });
 
 export { handler as GET, handler as POST };

@@ -1,18 +1,14 @@
-import axios from "axios";
+import { getSession } from "next-auth/react";
 
-export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
+export async function apiFetch(url: string, options: RequestInit = {}) {
+  const session = await getSession();
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-
-  return config;
-});
+  return fetch(process.env.NEXT_PUBLIC_API_URL + url, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${session?.apiToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+}
