@@ -1,46 +1,80 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
+interface LoginResponse {
+  access_token: string;
+  token_type: string;
+}
 
 export default function LoginPage() {
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
-  async function handleLogin() {
+  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     setLoading(true);
+
     try {
-      const res = await api.post("/auth/login", { email, password });
+      const res = await api.post<LoginResponse>("/auth/login", {
+        email,
+        password,
+      });
+
       localStorage.setItem("token", res.data.access_token);
+
       toast.success("Login realizado com sucesso");
       router.push("/dashboard");
-    } catch {
-      toast.error("Credenciais inválidas");
+    } catch (err) {
+      // ❗ NÃO logar objeto bruto
+      console.error("Erro de login");
+
+      toast.error("Email ou senha inválidos");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="flex h-screen items-center justify-center">
-      <div className="w-full max-w-sm space-y-4">
-        <h1 className="text-2xl font-bold">Entrar</h1>
-        <Input placeholder="Email" onChange={(e) => setEmail(e.target.value)} />
-        <Input
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <form
+        onSubmit={handleLogin}
+        className="w-full max-w-sm space-y-4 rounded-lg border p-6"
+      >
+        <h1 className="text-2xl font-bold text-center">MYFinanceCRM</h1>
+
+        <input
+          type="email"
+          placeholder="Email"
+          className="w-full rounded-md border px-3 py-2"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+
+        <input
           type="password"
           placeholder="Senha"
+          className="w-full rounded-md border px-3 py-2"
+          value={password}
           onChange={(e) => setPassword(e.target.value)}
+          required
         />
-        <Button className="w-full" onClick={handleLogin} disabled={loading}>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-md bg-black py-2 text-white disabled:opacity-50"
+        >
           {loading ? "Entrando..." : "Entrar"}
-        </Button>
-      </div>
+        </button>
+      </form>
     </div>
   );
 }
