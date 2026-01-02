@@ -286,13 +286,13 @@ export default function DashboardPage() {
   }, [monthly]);
 
   return (
-    <div className="space-y-8 bg-gradient-to-br from-background via-background to-primary/5 p-4 sm:p-6 md:p-8 rounded-xl border border-border/60 shadow-sm">
+    <div className="mx-auto max-w-6xl space-y-8 rounded-2xl border border-border/60 bg-gradient-to-b from-background via-background to-primary/5 p-4 sm:p-6 md:p-8 shadow-sm">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1.5">
           <p className="text-sm uppercase tracking-wide text-muted-foreground">
             Visao geral
           </p>
-          <h1 className="text-3xl font-semibold">Dashboard financeiro</h1>
+          <h1 className="text-3xl font-semibold leading-tight">Dashboard financeiro</h1>
           <p className="text-sm text-muted-foreground">
             Acompanhe receitas, despesas e saldo em tempo real.
           </p>
