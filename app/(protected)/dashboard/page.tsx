@@ -68,6 +68,12 @@ type Filtros = {
   tipo: "todos" | "receita" | "despesa";
 };
 
+type MonthlyPoint = {
+  mes: string; // ISO date first day
+  receitas: number;
+  despesas: number;
+};
+
 const currency = (value: number) =>
   new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -78,10 +84,14 @@ const currency = (value: number) =>
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString("pt-BR");
 
+const formatMonthLabel = (iso: string) =>
+  new Date(iso).toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
+
 export default function DashboardPage() {
   const [summary, setSummary] = useState<DashboardData | null>(null);
   const [receitas, setReceitas] = useState<Movimento[]>([]);
   const [despesas, setDespesas] = useState<Movimento[]>([]);
+  const [monthly, setMonthly] = useState<MonthlyPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -115,19 +125,22 @@ export default function DashboardPage() {
 
       const query = params.toString() ? `?${params.toString()}` : "";
 
-      const [dashRes, recRes, desRes] = await Promise.all([
+      const [dashRes, recRes, desRes, monthlyRes] = await Promise.all([
         apiFetch("/dashboard"),
         apiFetch(`/receitas${query}`),
         apiFetch(`/despesas${query}`),
+        apiFetch("/dashboard/monthly"),
       ]);
 
       if (!dashRes.ok) throw new Error("Falha ao carregar resumo");
       if (!recRes.ok) throw new Error("Falha ao carregar receitas");
       if (!desRes.ok) throw new Error("Falha ao carregar despesas");
+      if (!monthlyRes.ok) throw new Error("Falha ao carregar mensal");
 
       const dashBody = (await dashRes.json()) as DashboardData;
       const recBody = (await recRes.json()) as MovimentoBase[];
       const desBody = (await desRes.json()) as MovimentoBase[];
+      const monthlyBody = (await monthlyRes.json()) as MonthlyPoint[];
 
       setSummary(dashBody);
       setReceitas(
@@ -144,6 +157,7 @@ export default function DashboardPage() {
           tipo: "despesa",
         }))
       );
+      setMonthly(monthlyBody);
     } catch (err) {
       console.error(err);
       toast.error("Nao foi possivel carregar os dados do dashboard.");
@@ -256,6 +270,21 @@ export default function DashboardPage() {
       .slice(0, 6);
   }, [filters.tipo, receitas, despesas]);
 
+  const monthlyChart = useMemo(() => {
+    if (!monthly.length) return [];
+    const data = monthly.slice(-6); // últimos 6 meses
+    const maxValor = Math.max(
+      ...data.map((m) => Math.max(m.receitas, m.despesas, m.receitas - m.despesas))
+    );
+    return data.map((m) => ({
+      ...m,
+      saldo: m.receitas - m.despesas,
+      receitasPct: maxValor ? (m.receitas / maxValor) * 100 : 0,
+      despesasPct: maxValor ? (m.despesas / maxValor) * 100 : 0,
+      saldoPct: maxValor ? (Math.abs(m.receitas - m.despesas) / maxValor) * 100 : 0,
+    }));
+  }, [monthly]);
+
   return (
     <div className="space-y-8 bg-gradient-to-br from-background via-background to-primary/5 p-4 sm:p-6 md:p-8 rounded-xl border border-border/60 shadow-sm">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -309,6 +338,64 @@ export default function DashboardPage() {
           total_despesas={summary.total_despesas}
           saldo={summary.saldo}
         />
+      )}
+
+      {!loading && monthlyChart.length > 0 && (
+        <Card className="border-border/80 shadow-lg backdrop-blur bg-card/80">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <div>
+              <CardTitle className="text-lg">Resumo mensal</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Últimos 6 meses: receitas, despesas e saldo.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                Receitas
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-red-500" />
+                Despesas
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-end gap-4 overflow-x-auto pb-2">
+              {monthlyChart.map((m) => (
+                <div
+                  key={m.mes}
+                  className="flex min-w-[80px] flex-col items-center gap-2"
+                >
+                  <div className="flex h-40 w-full items-end gap-1 rounded-md bg-muted/40 p-2">
+                    <div
+                      className="w-1/2 rounded-sm bg-emerald-500/80 shadow-sm"
+                      style={{ height: `${Math.max(m.receitasPct, 4)}%` }}
+                      title={`Receitas ${currency(m.receitas)}`}
+                    />
+                    <div
+                      className="w-1/2 rounded-sm bg-red-500/80 shadow-sm"
+                      style={{ height: `${Math.max(m.despesasPct, 4)}%` }}
+                      title={`Despesas ${currency(m.despesas)}`}
+                    />
+                  </div>
+                  <div className="text-center text-xs font-medium text-muted-foreground">
+                    {formatMonthLabel(m.mes)}
+                  </div>
+                  <div
+                    className={`rounded-full px-2 py-1 text-xs ${
+                      m.saldo >= 0
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-red-50 text-red-600"
+                    }`}
+                  >
+                    {currency(m.saldo)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
