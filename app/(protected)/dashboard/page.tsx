@@ -10,6 +10,7 @@ import {
   CreditCard,
   Loader2,
   LogOut,
+  RefreshCcw,
   Receipt,
   Trash2,
 } from "lucide-react";
@@ -60,6 +61,13 @@ const movimentoSchema = z.object({
 type MovimentoForm = z.infer<typeof movimentoSchema>;
 type MovimentoErrors = Partial<Record<keyof MovimentoForm, string>>;
 
+type Filtros = {
+  inicio: string;
+  fim: string;
+  busca: string;
+  tipo: "todos" | "receita" | "despesa";
+};
+
 const currency = (value: number) =>
   new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -77,6 +85,12 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [filters, setFilters] = useState<Filtros>({
+    inicio: "",
+    fim: "",
+    busca: "",
+    tipo: "todos",
+  });
   const [form, setForm] = useState<MovimentoForm>({
     descricao: "",
     valor: 0,
@@ -88,15 +102,23 @@ export default function DashboardPage() {
 
   useEffect(() => {
     void loadAll();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
 
   async function loadAll() {
     setLoading(true);
     try {
+      const params = new URLSearchParams();
+      if (filters.inicio) params.append("inicio", filters.inicio);
+      if (filters.fim) params.append("fim", filters.fim);
+      if (filters.busca) params.append("busca", filters.busca);
+
+      const query = params.toString() ? `?${params.toString()}` : "";
+
       const [dashRes, recRes, desRes] = await Promise.all([
         apiFetch("/dashboard"),
-        apiFetch("/receitas"),
-        apiFetch("/despesas"),
+        apiFetch(`/receitas${query}`),
+        apiFetch(`/despesas${query}`),
       ]);
 
       if (!dashRes.ok) throw new Error("Falha ao carregar resumo");
@@ -222,13 +244,17 @@ export default function DashboardPage() {
 
   const ultimosMovimentos = useMemo(() => {
     const merged = [...receitas, ...despesas];
-    return merged
+    const filtrados = filters.tipo === "todos"
+      ? merged
+      : merged.filter((m) => m.tipo === filters.tipo);
+
+    return filtrados
       .sort(
         (a, b) =>
           new Date(b.data).getTime() - new Date(a.data).getTime()
       )
       .slice(0, 6);
-  }, [receitas, despesas]);
+  }, [filters.tipo, receitas, despesas]);
 
   return (
     <div className="space-y-8 bg-gradient-to-br from-background via-background to-primary/5 p-4 sm:p-6 md:p-8 rounded-xl border border-border/60 shadow-sm">
@@ -247,6 +273,19 @@ export default function DashboardPage() {
             <CalendarDays className="h-4 w-4" />
             {new Date().toLocaleDateString("pt-BR")}
           </div>
+          <Button
+            variant="ghost"
+            onClick={() => loadAll()}
+            disabled={loading}
+            className="gap-2"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCcw className="h-4 w-4" />
+            )}
+            Atualizar
+          </Button>
           <Button
             variant="outline"
             onClick={handleLogout}
@@ -279,6 +318,61 @@ export default function DashboardPage() {
             <Receipt className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent>
+            <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-1">
+                <Label htmlFor="busca">Buscar</Label>
+                <Input
+                  id="busca"
+                  placeholder="Descricao"
+                  value={filters.busca}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, busca: e.target.value }))
+                  }
+                  onBlur={() => loadAll()}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="inicio">Inicio</Label>
+                <Input
+                  id="inicio"
+                  type="date"
+                  value={filters.inicio}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, inicio: e.target.value }))
+                  }
+                  onBlur={() => loadAll()}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="fim">Fim</Label>
+                <Input
+                  id="fim"
+                  type="date"
+                  value={filters.fim}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, fim: e.target.value }))
+                  }
+                  onBlur={() => loadAll()}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Tipo</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["todos", "receita", "despesa"] as const).map((tipo) => (
+                    <Button
+                      key={tipo}
+                      type="button"
+                      variant={filters.tipo === tipo ? "default" : "outline"}
+                      className="w-full text-xs"
+                      onClick={() =>
+                        setFilters((prev) => ({ ...prev, tipo })) }
+                    >
+                      {tipo === "todos" ? "Todos" : tipo === "receita" ? "Receitas" : "Despesas"}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
