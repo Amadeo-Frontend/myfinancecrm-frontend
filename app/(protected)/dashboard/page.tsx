@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
 import {
@@ -8,8 +8,11 @@ import {
   CalendarDays,
   CirclePlus,
   CreditCard,
+  Filter,
+  LayoutDashboard,
   Loader2,
   LogOut,
+  PlusCircle,
   RefreshCcw,
   Receipt,
   Trash2,
@@ -99,6 +102,9 @@ export default function DashboardPage() {
     tipo: "receita",
   });
   const [errors, setErrors] = useState<MovimentoErrors>({});
+  const topRef = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const formRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     void loadAll();
@@ -257,8 +263,11 @@ export default function DashboardPage() {
   }, [filters.tipo, receitas, despesas]);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 rounded-2xl border border-border/60 bg-gradient-to-b from-background via-background to-primary/5 p-4 sm:p-6 md:p-8 shadow-sm">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="mx-auto max-w-6xl space-y-8 rounded-2xl border border-border/60 bg-gradient-to-b from-background via-background to-primary/5 p-4 sm:p-6 md:p-8 pb-28 shadow-sm">
+      <div
+        ref={topRef}
+        className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
+      >
         <div className="space-y-1.5">
           <p className="text-sm uppercase tracking-wide text-muted-foreground">
             Visao geral
@@ -316,7 +325,7 @@ export default function DashboardPage() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
-        <Card className="border-border/80 shadow-lg backdrop-blur bg-card/80">
+        <Card ref={listRef} className="border-border/80 shadow-lg backdrop-blur bg-card/80">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
             <CardTitle className="text-lg">Movimentacoes recentes</CardTitle>
             <Receipt className="h-5 w-5 text-primary" />
@@ -377,65 +386,117 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Descricao</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                  <TableHead className="text-right">Acoes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ultimosMovimentos.length === 0 && (
+
+            <div className="hidden sm:block">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">
-                      Nenhum movimento cadastrado ainda.
-                    </TableCell>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Descricao</TableHead>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead className="text-right">Acoes</TableHead>
                   </TableRow>
-                )}
-                {ultimosMovimentos.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
+                </TableHeader>
+                <TableBody>
+                  {ultimosMovimentos.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center">
+                        Nenhum movimento cadastrado ainda.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {ultimosMovimentos.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-medium ${
+                            item.tipo === "receita"
+                              ? "bg-emerald-50 text-emerald-600"
+                              : "bg-red-50 text-red-600"
+                          }`}
+                        >
+                          {item.tipo === "receita" ? "Receita" : "Despesa"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate">
+                        {item.descricao}
+                      </TableCell>
+                      <TableCell>{item.categoria}</TableCell>
+                      <TableCell>{formatDate(item.data)}</TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {item.tipo === "receita" ? "+" : "-"}
+                        {currency(item.valor)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => handleDelete(item.id, item.tipo)}
+                          aria-label="Excluir"
+                        >
+                          <Trash2 className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="block space-y-3 sm:hidden">
+              {ultimosMovimentos.length === 0 && (
+                <div className="text-center text-sm text-muted-foreground">
+                  Nenhum movimento cadastrado ainda.
+                </div>
+              )}
+              {ultimosMovimentos.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-xl border border-border/70 bg-card/80 p-3 shadow-xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`rounded-full px-2 py-1 text-xs font-medium ${
+                        item.tipo === "receita"
+                          ? "bg-emerald-50 text-emerald-600"
+                          : "bg-red-50 text-red-600"
+                      }`}
+                    >
+                      {item.tipo === "receita" ? "Receita" : "Despesa"}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleDelete(item.id, item.tipo)}
+                      aria-label="Excluir"
+                    >
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                  <div className="mt-2 space-y-1 text-sm">
+                    <div className="font-medium">{item.descricao}</div>
+                    <div className="text-muted-foreground">{item.categoria}</div>
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>{formatDate(item.data)}</span>
                       <span
-                        className={`rounded-full px-2 py-1 text-xs font-medium ${
-                          item.tipo === "receita"
-                            ? "bg-emerald-50 text-emerald-600"
-                            : "bg-red-50 text-red-600"
+                        className={`font-semibold ${
+                          item.tipo === "receita" ? "text-emerald-600" : "text-red-600"
                         }`}
                       >
-                        {item.tipo === "receita" ? "Receita" : "Despesa"}
+                        {item.tipo === "receita" ? "+" : "-"}
+                        {currency(item.valor)}
                       </span>
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate">
-                      {item.descricao}
-                    </TableCell>
-                    <TableCell>{item.categoria}</TableCell>
-                    <TableCell>{formatDate(item.data)}</TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {item.tipo === "receita" ? "+" : "-"}
-                      {currency(item.valor)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => handleDelete(item.id, item.tipo)}
-                        aria-label="Excluir"
-                      >
-                        <Trash2 className="h-4 w-4 text-muted-foreground" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="border-border/80 shadow-lg backdrop-blur bg-card/80">
+        <Card ref={formRef} className="border-border/80 shadow-lg backdrop-blur bg-card/80">
           <CardHeader className="space-y-1">
             <CardTitle className="text-lg">Adicionar movimento</CardTitle>
             <p className="text-sm text-muted-foreground">
@@ -444,8 +505,8 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={handleSubmit} noValidate>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2 space-y-2">
+              <div className="grid grid-cols-1 gap-3">
+                <div className="space-y-2">
                   <Label htmlFor="descricao">Descricao</Label>
                   <Input
                     id="descricao"
@@ -466,105 +527,109 @@ export default function DashboardPage() {
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="valor">Valor</Label>
-                  <div className="relative">
-                    <Banknote className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="valor">Valor</Label>
+                    <div className="relative">
+                      <Banknote className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="valor"
+                        type="number"
+                        step="0.01"
+                        value={form.valor}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            valor: e.target.valueAsNumber,
+                          }))
+                        }
+                        aria-invalid={Boolean(errors.valor)}
+                        className="pl-10"
+                      />
+                    </div>
+                    {errors.valor && (
+                      <p className="text-sm text-destructive">
+                        {errors.valor}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="categoria">Categoria</Label>
                     <Input
-                      id="valor"
-                      type="number"
-                      step="0.01"
-                      value={form.valor}
+                      id="categoria"
+                      value={form.categoria}
                       onChange={(e) =>
                         setForm((prev) => ({
                           ...prev,
-                          valor: e.target.valueAsNumber,
+                          categoria: e.target.value,
                         }))
                       }
-                      aria-invalid={Boolean(errors.valor)}
-                      className="pl-10"
+                      aria-invalid={Boolean(errors.categoria)}
+                      placeholder="Ex.: Alimentacao, Salario"
                     />
+                    {errors.categoria && (
+                      <p className="text-sm text-destructive">
+                        {errors.categoria}
+                      </p>
+                    )}
                   </div>
-                  {errors.valor && (
-                    <p className="text-sm text-destructive">
-                      {errors.valor}
-                    </p>
-                  )}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="categoria">Categoria</Label>
-                  <Input
-                    id="categoria"
-                    value={form.categoria}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        categoria: e.target.value,
-                      }))
-                    }
-                    aria-invalid={Boolean(errors.categoria)}
-                    placeholder="Ex.: Alimentacao, Salario"
-                  />
-                  {errors.categoria && (
-                    <p className="text-sm text-destructive">
-                      {errors.categoria}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="data">Data</Label>
-                  <div className="relative">
-                    <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      id="data"
-                      type="date"
-                      value={form.data}
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          data: e.target.value,
-                        }))
-                      }
-                      aria-invalid={Boolean(errors.data)}
-                      className="pl-10"
-                    />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="data">Data</Label>
+                    <div className="relative">
+                      <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="data"
+                        type="date"
+                        value={form.data}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            data: e.target.value,
+                          }))
+                        }
+                        aria-invalid={Boolean(errors.data)}
+                        className="pl-10"
+                      />
+                    </div>
+                    {errors.data && (
+                      <p className="text-sm text-destructive">
+                        {errors.data}
+                      </p>
+                    )}
                   </div>
-                  {errors.data && (
-                    <p className="text-sm text-destructive">
-                      {errors.data}
-                    </p>
-                  )}
-                </div>
 
-                <div className="space-y-2">
-                  <Label>Tipo</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      type="button"
-                      variant={form.tipo === "receita" ? "default" : "outline"}
-                      className="w-full"
-                      onClick={() => setForm((prev) => ({ ...prev, tipo: "receita" }))}
-                    >
-                      <CreditCard className="mr-2 h-4 w-4" />
-                      Receita
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={form.tipo === "despesa" ? "default" : "outline"}
-                      className="w-full"
-                      onClick={() => setForm((prev) => ({ ...prev, tipo: "despesa" }))}
-                    >
-                      <CirclePlus className="mr-2 h-4 w-4" />
-                      Despesa
-                    </Button>
+                  <div className="space-y-2">
+                    <Label>Tipo</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        variant={form.tipo === "receita" ? "default" : "outline"}
+                        className="w-full"
+                        onClick={() => setForm((prev) => ({ ...prev, tipo: "receita" }))}
+                      >
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        Receita
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={form.tipo === "despesa" ? "default" : "outline"}
+                        className="w-full"
+                        onClick={() => setForm((prev) => ({ ...prev, tipo: "despesa" }))}
+                      >
+                        <CirclePlus className="mr-2 h-4 w-4" />
+                        Despesa
+                      </Button>
+                    </div>
+                    {errors.tipo && (
+                      <p className="text-sm text-destructive">
+                        {errors.tipo}
+                      </p>
+                    )}
                   </div>
-                  {errors.tipo && (
-                    <p className="text-sm text-destructive">
-                      {errors.tipo}
-                    </p>
-                  )}
                 </div>
               </div>
 
@@ -581,6 +646,35 @@ export default function DashboardPage() {
             </form>
           </CardContent>
         </Card>
+    </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border/60 bg-background/95 backdrop-blur sm:hidden">
+        <div className="mx-auto flex max-w-3xl items-center justify-around px-4 py-3 text-sm">
+          <button
+            className="flex flex-col items-center gap-1 text-foreground"
+            onClick={() => topRef.current?.scrollIntoView({ behavior: "smooth" })}
+            aria-label="Topo"
+          >
+            <LayoutDashboard className="h-5 w-5" />
+            Home
+          </button>
+          <button
+            className="flex flex-col items-center gap-1 text-foreground"
+            onClick={() => listRef.current?.scrollIntoView({ behavior: "smooth" })}
+            aria-label="Movimentacoes"
+          >
+            <Filter className="h-5 w-5" />
+            Filtros
+          </button>
+          <button
+            className="flex flex-col items-center gap-1 text-foreground"
+            onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth" })}
+            aria-label="Adicionar"
+          >
+            <PlusCircle className="h-5 w-5" />
+            Adicionar
+          </button>
+        </div>
       </div>
     </div>
   );
